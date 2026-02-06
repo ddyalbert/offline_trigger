@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "browse":{
+                "path":[
+                    //"/home/duandy/app/geant4/install/include/Geant4",
+                    "/home/duandy/app/root/include"
+                ],
+                "limitSymbolsToIncludedHeaders":true
+            },
+            "includePath":[
+                    //"/home/duandy/app/geant4/install/include/Geant4",
+                    "/home/duandy/app/root/include"
+            ],
+
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

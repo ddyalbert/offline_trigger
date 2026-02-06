@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "myclass.C": "cpp",
+        "Ana.C": "cpp"
+    },
+    "python.languageServer": "Pylance",
+
+    "files.exclude": {
+        "**/__pycache__": true,
+    },
+    "trae.tab.enableRename": false,
+    "trae.tab.enableAutoImport": false
+    
+}
