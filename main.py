@@ -67,6 +67,8 @@ class DataAnalyzer(QMainWindow):
         self.Act_save_json: QAction
         self.Act_copy_BIN: QAction
         self.Act_obj_browser: QAction
+        self.Act_convert_TDMS: QAction
+        self.Act_convert_open_TDMS: QAction
 
         self.Act_save_json.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         self.Act_save_json.setShortcut(QtGui.QKeySequence.StandardKey.Save)
@@ -75,11 +77,13 @@ class DataAnalyzer(QMainWindow):
 
         self.Act_open_data.setShortcutContext(QtCore.Qt.ShortcutContext.ApplicationShortcut)
         self.Act_open_data.setShortcut(QtGui.QKeySequence.StandardKey.Open)
-        self.Act_open_data.triggered.connect(self._open_data)
+        self.Act_open_data.triggered.connect(lambda: self._open_data(file_path=""))
         self.Act_open_data.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton))
 
         self.Act_copy_BIN.triggered.connect(self._copy_BIN)
         self.Act_obj_browser.triggered.connect(self._obj_browser)
+        self.Act_convert_TDMS.triggered.connect(self._convert_TDMS)
+        self.Act_convert_open_TDMS.triggered.connect(self._convert_open_TDMS)
 
         self.test: QPushButton
         # self.test.clicked.connect(self._test)
@@ -123,8 +127,9 @@ class DataAnalyzer(QMainWindow):
         self.of = OF.OptimalFilter(int(self.win_len * self.sampling), self.sampling)
         self.trigger.of = self.of
 
-    def _open_data(self):
+    def _open_data(self, file_path: str = ""):
 
+        # 如果没有data_file类实例，创建一个; 否则，使用已有的实例
         if self.data_file is None:
             sampling = self.SB_sampling.value()
             ADC_bit = self.SB_ADC_bit.value()
@@ -133,24 +138,31 @@ class DataAnalyzer(QMainWindow):
         else:
             data_file = self.data_file
         
-        if self._is_change_filePath:
-            file_path = self.LE_file_path.text()
+        # 如果文件文本框有改变，重新打开此文件; 否则，打开文件浏览器选择文件
+        if file_path != "":
             self._is_change_filePath = False
             data_file.open(file_path, parent_window=self)
-
         else:
-            try:
-                data_file.open(parent_window=self)
-            except:
-                self.statusBar.set_text(f"Sorry, No data file has been chosen!",type_str="No File Chosen Error")
-                return
+            if self._is_change_filePath:
+                file_path = self.LE_file_path.text()
+                self._is_change_filePath = False
+                data_file.open(file_path, parent_window=self)
+            else:
+                try:
+                    data_file.open(parent_window=self)
+                except:
+                    self.statusBar.set_text(f"Sorry, No data file has been chosen!",type_str="No File Chosen Error")
+                    return
 
         if self.data_file is None:
             self.data_file = data_file
 
-        self._reset_widget()
-        self._change_waring("off")
 
+        # 设置参数值
+        self._reset_widget()
+        self._is_warning("off")
+
+        # 如果是编码文件，设置参数值，并且取消用户可以修改的权限
         is_encoded = self.data_file.is_encoded
         if is_encoded:
             self.SB_sampling.setValue(self.data_file.sampling)
@@ -165,14 +177,16 @@ class DataAnalyzer(QMainWindow):
         
         self.LE_file_path.setText(self.data_file.file_path)
         self.LCD_total_duration.display(self.data_file.total_duration)
-        
+
+
+        # 重置窗口，创建必要的功能类实例，加载Json
         self._reset_widget()
         self._create_objs()
         self._load_json()
         
         self.SB_start_time_FT.setValue(0)
         self.SB_start_time_PT.setValue(0)
-        self._change_waring("on")
+        self._is_warning("on")
         
         self._is_change_filePath = False
         self.statusBar.set_text(f"Open file success: {data_file.file_path}")
@@ -218,8 +232,6 @@ class DataAnalyzer(QMainWindow):
     # =========================  Global methods ==================================
     # ============================================================================
     _is_change_filePath = False
-    _is_insist_change: bool = False
-    _is_lock_change: bool = False
 
     def _init_global(self):
         self.LCD_total_duration: QLCDNumber
@@ -241,7 +253,7 @@ class DataAnalyzer(QMainWindow):
         self.SB_main_version.editingFinished.connect(self._change_version)
         self.SB_template_version.editingFinished.connect(self._change_version)
 
-        self.PB_open_data.clicked.connect(self._open_data)
+        self.PB_open_data.clicked.connect(lambda: self._open_data(file_path=""))
         
         self.CB_configuration_list.setFolder(folder=".configuration/", suffix=".json")
 
@@ -268,15 +280,20 @@ class DataAnalyzer(QMainWindow):
         if self.events is not None:
             self.events.set_version(self.main_version, self.template_version)
         
-        self._change_waring("off")
+        self._is_warning("off")
         self._reset_widget()
         self._create_objs()
         self._load_json()
-        self._change_waring("on")
+        self._is_warning("on")
 
         self.statusBar.set_text(f"Change version to v{self.main_version}.{self.template_version}")
 
-    def _change_waring(self, status_str: str = ""):
+    # 是否强制改变Global参数
+    _is_insist_change: bool = False
+    # 是否锁定Global参数的修改
+    _is_lock_change: bool = False
+
+    def _is_warning(self, status_str: str = ""):
         if status_str == "off":
             self._is_insist_change = True
         elif status_str == "on":
@@ -297,10 +314,10 @@ class DataAnalyzer(QMainWindow):
         self._is_lock_change = False
         
         if reply == QMessageBox.StandardButton.Yes:
-            self._change_waring("off")
+            self._is_warning("off")
             return False
         else:
-            self._change_waring("on")
+            self._is_warning("on")
             return True
         
     def _set_ADC_para(self):
@@ -509,7 +526,7 @@ class DataAnalyzer(QMainWindow):
         self._reopen_signal_tree(is_filtered = False)
 
         self.LCD_events_num.display(self.events.num_signal)
-        self._change_waring("on")
+        self._is_warning("on")
 
         self.trigger.importData()
         self.data_file.reset_reader()
@@ -1096,7 +1113,7 @@ class DataAnalyzer(QMainWindow):
         except:
             return
         
-        self._change_waring("off")
+        self._is_warning("off")
         if not self.data_file.is_encoded:
             self.SB_sampling.setValue(dict_config["sampling"])
             self.DSB_Vrange.setValue(dict_config["Vrange"])
@@ -1138,7 +1155,7 @@ class DataAnalyzer(QMainWindow):
         else:
             self.LCD_events_num.display(self.events.num_signal)
 
-        self._change_waring("on")
+        self._is_warning("on")
         
         self.Tabs.setCurrentIndex(tab_index)
         self.statusBar.set_text(f"Load json success!", type_str="Load JSON")
@@ -1161,16 +1178,33 @@ class DataAnalyzer(QMainWindow):
     # ==========================Other Function ===================================
     # ============================================================================
 
-    def _input_get_BIN_para(self):
-        sampling, ok1 = QInputDialog.getInt(self, "Input Sampling", "Please input sampling rate of File (Hz):", value=self.sampling, min=1)
+    def __input_get_BIN_para(self):
+
+        if hasattr(self, "sampling"):
+            sampling = self.sampling
+        else:
+            sampling = 5000
+
+        if hasattr(self,"data_file") and hasattr(self.data_file,"ADC_bit"):
+            ADC_bit = self.data_file.ADC_bit
+        else:
+            ADC_bit = 16
+        
+        if hasattr(self,"data_file") and hasattr(self.data_file,"Vrange"):
+            Vrange = self.data_file.Vrange
+        else:
+            Vrange = 5
+
+
+        sampling, ok1 = QInputDialog.getInt(self, "Input Sampling", "Please input sampling rate of File (Hz):", value=sampling, min=1)
         if not ok1:
             return (False, None, None, None)
         
-        ADC_bit, ok2 = QInputDialog.getInt(self, "Input ADC bits", "Please input ADC bits of new file:", value=self.data_file.ADC_bit, min=1, max=32)
+        ADC_bit, ok2 = QInputDialog.getInt(self, "Input ADC bits", "Please input ADC bits of new file:", value=ADC_bit, min=1, max=32)
         if not ok2:
             return (False, None, None, None)
         
-        Vrange, ok3 = QInputDialog.getDouble(self, "Input Vrange", "Please input Voltage range of new file (±V):", value=self.data_file.Vrange, min=0.01)
+        Vrange, ok3 = QInputDialog.getDouble(self, "Input Vrange", "Please input Voltage range of new file (±V):", value=Vrange, min=0.01)
         if not ok3:
             return (False, None, None, None)
         
@@ -1194,7 +1228,7 @@ class DataAnalyzer(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
         )
 
-        ok, sampling, ADC_bit, Vrange = self._input_get_BIN_para()
+        ok, sampling, ADC_bit, Vrange = self.__input_get_BIN_para()
         if not ok:
             self.statusBar.set_text("Copy BIN file action canceled.", type_str="Copy BIN File Canceled")
             return
@@ -1212,6 +1246,47 @@ class DataAnalyzer(QMainWindow):
             self.statusBar.set_value(k + 1)
         self.data_file.reset_reader()
         self.statusBar.finish("Copy BIN file successfully to " + out_file)
+
+    
+    def _convert_TDMS(self):
+
+        import funcs.fileIO as fileIO
+
+        tdms_file = fileIO.get_file(self, filter="TDMS file(*.tdms)", title="Choose a TDMS file")
+        if tdms_file == "":
+            self.statusBar.set_text("No TDMS file chosen.", type_str="Convert TDMS File Canceled")
+            return
+        
+        self.statusBar.set_text("Opening TDMS file ... ")
+
+        ok, sampling, ADC_bit, Vrange = self.__input_get_BIN_para()
+        if not ok:
+            self.statusBar.set_text("Convert TDMS file action canceled.", type_str="Convert TDMS File Canceled")
+            return
+        
+        
+        step = int(1e6)
+
+        file_dir, file_name, _ = fileIO.extract_file_info(tdms_file)
+        out_file = file_dir + file_name + ".BIN2"
+
+        
+
+        is_first = True
+        for k in binFile.DataFile.convert_TDMS(tdms_file, sampling, ADC_bit, Vrange, out_file, step):
+            if is_first:
+                self.statusBar.start("Converting TDMS to BIN file...", 0, k)
+                is_first = False
+            self.statusBar.set_value(k + 1)
+
+        self.statusBar.finish("Convert TDMS file successfully to " + out_file)
+        return out_file
+
+    def _convert_open_TDMS(self):
+        out_file = self._convert_TDMS()
+        self._open_data(out_file)
+        self.statusBar.set_text("Convert and open TDMS file successfully: " + out_file)
+        
 
 
 

@@ -1,4 +1,3 @@
-
 '''
 binFile 类：
     为图形化界面提供与数据文件BIN2的交互接口
@@ -6,7 +5,6 @@ binFile 类：
     内部存储文件路径、数据的参数, 如采样率、ADC位数、满量程电压范围等
     存在一个reader对象, 用于读取文件数据
     
-
 '''
 
 import numpy as np
@@ -15,7 +13,7 @@ from typing import Optional, BinaryIO
 import struct
 import math
 
-import funcs.fileIO as myIO
+import funcs.fileIO as fileIO
 import classes.appError as appError
 
 # ------------------------------------------------------------
@@ -70,7 +68,7 @@ HEADER_SIZE = struct.calcsize(HEADER_FMT)
 class DataFile:
 
     file_name: str = "" # "cc"
-    file_dir: str = "" # "aa/bb/"
+    file_dir: str = ""  # "aa/bb/"
     file_path: str = "" # "aa/bb/cc.ext"
 
     sampling : int
@@ -96,7 +94,7 @@ class DataFile:
     def open(self, file_path: Optional[str] = None, parent_window = None):
 
         if file_path is None:
-            file_path = myIO.get_file(parent_window=parent_window, filter="(*.BIN2);;(*.BIN)")
+            file_path = fileIO.get_file(parent_window=parent_window, filter="(*.BIN2);;(*.BIN)")
             if file_path == "":
                 raise appError.DataFileNotOpenedError(f"No data file has been chosen!") from None
 
@@ -108,7 +106,7 @@ class DataFile:
         self.close()
         self.reader = reader
         self.file_path = file_path
-        self.file_dir, self.file_name, _ = myIO.extract_file_info(file_path)
+        self.file_dir, self.file_name, _ = fileIO.extract_file_info(file_path)
 
         self._detect_format()
 
@@ -269,16 +267,16 @@ class DataFile:
                 yield k
 
     @staticmethod
-    def convert_TDMS_file_to_BIN(tdms_file: str, sampling: int, ADC_bit: int, Vrange: float, 
+    def convert_TDMS(tdms_file: str, sampling: int, ADC_bit: int, Vrange: float, 
             out_file: Optional[str] = None, step: int = 1E6):
+        
         # 转换TDMS文件为BIN文件, 并添加头信息
         from nptdms import TdmsFile, TdmsGroup, TdmsChannel
-        if out_file is None:
-            out_file = os.path.splitext(tdms_file)[0] + "_copy.BIN2"
 
         n_bytes = int(math.ceil(ADC_bit / 8))
         if n_bytes > 4:
             raise ValueError(f"{n_bytes} bytes ADC data is not supported!")
+        
 
         tdms_reader = TdmsFile.open(tdms_file)
         group: TdmsGroup = tdms_reader.groups()[1]
@@ -287,6 +285,9 @@ class DataFile:
         header = struct.pack(HEADER_FMT, ADC_bit, Vrange, n_bytes, float(sampling), b"\x00" * 5 )
         data_length = len(channel)
         num_chunk = int(math.ceil(data_length / step))
+
+        file_dir, file_name, _ = fileIO.extract_file_info(tdms_file)
+        out_file = file_dir + file_name + ".BIN2"
 
         yield num_chunk
 
@@ -297,8 +298,9 @@ class DataFile:
             for k in range(num_chunk):
 
                 start_ind = k * step
-
-                v = self.read_next_by_index(step)
+                end_ind = min((k + 1) * step, data_length)
+                v = channel[start_ind:end_ind]
+                
                 v = np.round((v + Vrange) / (2 * Vrange) * (1 << ADC_bit)).astype(np.uint32)
                 v = np.clip(v, 0, (1 << 8 * n_bytes) - 1)
 
@@ -313,6 +315,9 @@ class DataFile:
                     v.astype(dtype_map[n_bytes]).tofile(fout)
 
                 yield k
+            
+            tdms_reader.close()
+            yield k
 
             
 
