@@ -13,7 +13,7 @@ void analysis()
 {
     gStyle->SetOptFit(1111);
     // TString folderName = "/mnt/wsl/disk/bolometer/Data/RUN33/WTh_CS_WP_ustcBox_1121/";
-    TString folderName = "/mnt/wsl/disk/bolometer/Data/RUN37/";
+    TString folderName = "/mnt/wsl/disk/bolometer/Data/RUN37/Na22_WTh_0418/";
     TFile *f = new TFile(folderName + "SignalFiltered_v0.0.root", "READ");
     TTree *tree = (TTree*)f->Get("tree");
 
@@ -56,7 +56,7 @@ void analysis()
     // stabilize fit params
     std::ifstream inFile("../.temp/fit_params.txt");
     Bool_t isSaveParams = false;
-    Double_t pp[2] = {0.0, 1.0};
+    Double_t pp[2] = {1.0, 0.0};
     if (inFile.is_open())
     {
         isSaveParams = true;
@@ -78,9 +78,9 @@ void analysis()
         if (pk_interval < min_distance) continue;
         if (!isValid) continue;
 
-        if (DT < 8 || DT > 13) continue;
-        if (RT < 3 || RT > 4.5) continue;
-        if (chi2_fil > 0.02) continue;
+        if (DT < 6 || DT > 10) continue;
+        if (RT < 2 || RT > 5) continue;
+        // if (chi2_fil > 0.02) continue;
 
         Double_t amp = Amp_fil;
         Double_t amp_s = 2.5 * amp/ (pp[0] + pp[1] * Baseline);
@@ -101,27 +101,27 @@ void analysis()
         graph_stabilize->AddPoint(Baseline, amp);
     }
 
-    // TCanvas *c_amp = new TCanvas("canvas_amp", "canvas_amp");
-    // hist_amp->Draw();
-    // canvas_amp->SetLogy();
-    // hist_amp->SetStats(2);
+    TCanvas *canvas_amp = new TCanvas("canvas_amp", "canvas_amp");
+    hist_amp->Draw();
+    canvas_amp->SetLogy();
+    hist_amp->SetStats(2);
 
-    TCanvas *canvas_stab = new TCanvas("canvas_stab", "canvas_stab");
-    hist_amp_s->Draw();
-    canvas_stab->SetLogy();
-    hist_amp_s->SetStats(2);
+    // TCanvas *canvas_stab = new TCanvas("canvas_stab", "canvas_stab");
+    // hist_amp_s->Draw();
+    // canvas_stab->SetLogy();
+    // hist_amp_s->SetStats(2);
 
-    // TCanvas *canvas_amp_DT = new TCanvas("canvas_amp_DT", "amp - DT");
-    // graph_amp_DT->SetTitle(";Amp (V);DT (ms)");
-    // graph_amp_DT->Draw("AP+");
+    TCanvas *canvas_amp_DT = new TCanvas("canvas_amp_DT", "amp - DT");
+    graph_amp_DT->SetTitle(";Amp (V);DT (ms)");
+    graph_amp_DT->Draw("AP+");
 
-    // TCanvas *canvas_amp_RT = new TCanvas("canvas_amp_RT", "amp - RT");
-    // graph_amp_RT->SetTitle(";Amp (V);RT (ms)");
-    // graph_amp_RT->Draw("AP+");
+    TCanvas *canvas_amp_RT = new TCanvas("canvas_amp_RT", "amp - RT");
+    graph_amp_RT->SetTitle(";Amp (V);RT (ms)");
+    graph_amp_RT->Draw("AP+");
 
-    // TCanvas *canvas_amp_chi2 = new TCanvas("canvas_amp_chi2", "amp - chi2");
-    // graph_amp_chi2->SetTitle(";Amp (V);chi2");
-    // graph_amp_chi2->Draw("AP+");
+    TCanvas *canvas_amp_chi2 = new TCanvas("canvas_amp_chi2", "amp - chi2");
+    graph_amp_chi2->SetTitle(";Amp (V);chi2");
+    graph_amp_chi2->Draw("AP+");
 
 
 
@@ -138,14 +138,14 @@ void analysis()
 
 
 
-    TCanvas *canvas_stablize = new TCanvas("canvas_stablize", "canvas_stablize");
-    graph_stabilize->SetTitle(";Baseline (V);Amp (V)");
-    graph_stabilize->SetMarkerStyle(20);
-    graph_stabilize->SetMarkerSize(0.2);
-    graph_stabilize->Draw("AP+");
+    // TCanvas *canvas_stablize = new TCanvas("canvas_stablize", "canvas_stablize");
+    // graph_stabilize->SetTitle(";Baseline (V);Amp (V)");
+    // graph_stabilize->SetMarkerStyle(20);
+    // graph_stabilize->SetMarkerSize(0.2);
+    // graph_stabilize->Draw("AP+");
 
-    TF1 *linefit = new TF1("linefit", "[0] + [1] * x", -2.4, -1.8);
-    graph_stabilize->Fit(linefit);
+    // TF1 *linefit = new TF1("linefit", "[0] + [1] * x", -2.4, -1.8);
+    // graph_stabilize->Fit(linefit);
 
     // std::ofstream outFile("../.temp/fit_params.txt");
     // outFile << linefit->GetParameter(0) << std::endl;

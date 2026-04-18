@@ -262,7 +262,11 @@ class Trigger:
                 v_pulse  = self.v[start_ind : end_ind]
                 vf_pulse = self.vf[start_ind : end_ind]
                 pp.import_data(v_pulse, vf_pulse, self.peaks_f[i] - start_ind)
-                pp.import_pulse_paras(self.pulse_paras.loc[i])
+                try:
+                    pp.import_pulse_paras(self.pulse_paras.loc[i])
+                except Exception as e:
+                    a = 0
+                    raise e
                 pp.get_filtered_amplitude_para()
                 pp.get_quality_para()
                 pulse_para = pp.export_pulse_paras(type='fil')

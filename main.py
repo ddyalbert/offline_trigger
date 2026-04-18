@@ -489,6 +489,13 @@ class DataAnalyzer(QMainWindow):
         self.mpl_PT.canvas.draw()
 
     def _pre_trigger_all(self):
+        try:
+            self.__pre_trigger_all()
+        except Exception as e:
+            self.events.delete_tree("signal_raw")
+            QMessageBox.critical(self, "Error!", f"An error occurred, the pre-trigger root file has been deleted!")
+
+    def __pre_trigger_all(self):
         self._check_data_file()
 
         self.events.recreate_tree_siganl()
@@ -1020,6 +1027,13 @@ class DataAnalyzer(QMainWindow):
         self.mpl_FT.canvas.draw()
 
     def _filter_all(self):
+        try:
+            self.__filter_all()
+        except Exception as e:
+            self.events.delete_tree("signal_fil")
+            QMessageBox.critical(self, "Error!", f"An error occurred, the filtered root file has been deleted!")
+
+    def __filter_all(self):
         self._check_data_file()
         
         self.events.recreate_tree_siganl(is_filtered=True)

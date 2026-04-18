@@ -122,6 +122,38 @@ class EventsTree:
         self.tree_read_noise = None
     
     # 导入和打开树 ============================================================================
+    def delete_tree(self, tree_name: str = "signal_raw"):
+        # 删除SignalTree或NoiseTree文件，同时重置对应的写入和读取对象
+        # tree_name: "signal_raw" or "signal_fil" or "noise"
+
+        if tree_name == "signal_raw":
+            tree_name = f"Signal_v{self.main_version}.root"
+        elif tree_name == "signal_fil":
+            tree_name = f"SignalFiltered_v{self.main_version}.{self.template_version}.root"
+        elif tree_name == "noise":
+            tree_name = f"Noise_v{self.main_version}.root"
+        else:
+            raise ValueError(f"Invalid tree name: {tree_name}")
+        
+        try:
+            os.remove(self.file_dir + tree_name)
+        except:
+            pass
+        
+        finally:
+            if tree_name.startswith("signal"):
+                self.index_cut_signal = None
+                self.tree_write_signal = None
+                self.tree_read_signal = None
+                self.num_signal = 0
+            elif tree_name == "noise":
+                self.index_cut_noise = None
+                self.tree_write_noise = None
+                self.tree_read_noise = None
+                self.num_noise = 0
+
+
+
     def recreate_tree_siganl(self, is_filtered: bool = False):
         # 重新创建SignalTree，若is_filtered为True，则创建Filtered后的Tree，否则创建原始Tree
         branch_type = {
