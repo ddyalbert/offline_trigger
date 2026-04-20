@@ -493,7 +493,7 @@ class DataAnalyzer(QMainWindow):
             self.__pre_trigger_all()
         except Exception as e:
             self.events.delete_tree("signal_raw")
-            QMessageBox.critical(self, "Error!", f"An error occurred, the pre-trigger root file has been deleted!")
+            raise e
 
     def __pre_trigger_all(self):
         self._check_data_file()
@@ -1031,7 +1031,7 @@ class DataAnalyzer(QMainWindow):
             self.__filter_all()
         except Exception as e:
             self.events.delete_tree("signal_fil")
-            QMessageBox.critical(self, "Error!", f"An error occurred, the filtered root file has been deleted!")
+            raise e
 
     def __filter_all(self):
         self._check_data_file()
@@ -1407,13 +1407,14 @@ def excepthook(exctype, value, tb):
     if isinstance(value, appError.AppError):
         QMessageBox.critical(mainWin, value.title, str(value))
     else:
+        QMessageBox.critical(None, "程序错误", f"发生未预期的错误:\n{str(value)}")
         sys.__excepthook__(exctype, value, tb)
 
 if __name__ == '__main__':
     sys.excepthook = excepthook
 
     app = QApplication(sys.argv)
-    app.setWindowIcon(QtGui.QIcon('.temp/ustcblue.ico'))
+    app.setWindowIcon(QtGui.QIcon('./icon.ico'))
     mainWin = DataAnalyzer()
     mainWin.show()
     app.exec_()

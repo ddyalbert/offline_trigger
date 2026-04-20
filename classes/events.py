@@ -326,7 +326,7 @@ class EventsTree:
             list_df = []
         
         res: pd.DataFrame = res[(res["pk_time"] >= start_time) & (res["pk_time"] < start_time + length)]
-        res = res.copy()
+        res = res.reset_index(drop=True)
         res["pk_time"] -= start_time
         return res
 

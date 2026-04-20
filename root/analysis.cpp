@@ -47,6 +47,7 @@ void analysis()
     TH1D *hist_amp_s = new TH1D("hist_amp_s", "Hist;Amp(V)", 100, 0, 3);
     TGraph *graph_stabilize = new TGraph();
 
+    TGraph *graph_raw_fil = new TGraph();
     TGraph *graph_amp_RT = new TGraph();
     TGraph *graph_amp_DT = new TGraph();
     TGraph *graph_amp_chi2 = new TGraph();
@@ -77,17 +78,20 @@ void analysis()
         tree->GetEntry(i);
         if (pk_interval < min_distance) continue;
         if (!isValid) continue;
+        if (Amp_fil <= 0) continue; 
 
-        if (DT < 6 || DT > 10) continue;
-        if (RT < 2 || RT > 5) continue;
-        // if (chi2_fil > 0.02) continue;
+        if (DT < 7 || DT > 10) continue;
+        if (RT < 3 || RT > 4) continue;
+        if (chi2_fil > 0.01) continue;
 
         Double_t amp = Amp_fil;
-        Double_t amp_s = 2.5 * amp/ (pp[0] + pp[1] * Baseline);
+        Double_t amp_s = amp;
+        // Double_t amp_s = 2.5 * amp/ (pp[0] + pp[1] * Baseline);
 
         hist_amp->Fill(amp);
         hist_amp_s->Fill(amp_s);
 
+        graph_raw_fil->AddPoint(Amp_raw, Amp_fil);
         graph_amp_RT->AddPoint(amp_s, RT);
         graph_amp_DT->AddPoint(amp_s, DT);
         graph_amp_chi2->AddPoint(amp_s, chi2_fil);
@@ -110,6 +114,10 @@ void analysis()
     // hist_amp_s->Draw();
     // canvas_stab->SetLogy();
     // hist_amp_s->SetStats(2);
+    TCanvas *canvas_raw_fil = new TCanvas("canvas_raw_fil", "canvas_raw_fil");
+    graph_raw_fil->SetTitle(";Amp raw (V);Amp fil (V)");
+    graph_raw_fil->Draw("AP+");
+
 
     TCanvas *canvas_amp_DT = new TCanvas("canvas_amp_DT", "amp - DT");
     graph_amp_DT->SetTitle(";Amp (V);DT (ms)");
@@ -124,18 +132,10 @@ void analysis()
     graph_amp_chi2->Draw("AP+");
 
 
-
-
-
-
-
-
     // TF1 *guss = new TF1("guss", "[0] + [1] * TMath::Gaus(x, [2], [3])", 3.19, 3.21);
     // guss->SetParNames("Constant", "Amplitude", "Mean", "Sigma");
     // guss->SetParameters(0, 1, 3.25, 0.01);
     // h_amp_s->Fit(guss,"R");
-
-
 
 
     // TCanvas *canvas_stablize = new TCanvas("canvas_stablize", "canvas_stablize");
