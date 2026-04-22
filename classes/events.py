@@ -745,7 +745,8 @@ class EventsDataFrame:
                     f"RMS={self.df_signal['BL_RMS'][i]:.2f}, "
                     f"RT={self.df_signal['RT'][i]:.1f}, "
                     f"DT={self.df_signal['DT'][i]:.1f}, "
-                    f"slope={self.df_signal['BL_slope'][i]:.3f}"
+                    f"slope={self.df_signal['BL_slope'][i]:.3f}, "
+                    f"posi={self.df_signal['pk_time'][i]:.1f}"
                     )
             
             v = read_signal(self.df_signal['pk_time'][i]) - self.df_signal['Baseline'][i]
@@ -818,7 +819,8 @@ class EventsDataFrame:
                     f"p2p={self.df_noise['BL_p2p'][i]:.2f}, "
                     f"slope={self.df_noise['BL_slope'][i]:.3f}, "
                     f"RMS={self.df_noise['BL_RMS'][i]:.2f}, "
-                    f"length={noise_len:.1f}")
+                    f"length={noise_len:.1f}, "
+                    f"position={self.df_noise['start_time'][i]:.1f}")
             v = read_noise(self.df_noise['start_time'][i], noise_len)
             if is_align:
                 v = v - np.mean(v)
@@ -857,6 +859,8 @@ class BaselineSigma:
     data_fil: np.ndarray = np.array([])
     of: Optional[OF] = None
 
+    unit: str = 'mV'
+
     def __init__(self, of: Optional[OF] = None):
         self.of = of
 
@@ -878,28 +882,36 @@ class BaselineSigma:
         for i in range(n_win):
             self._data_fil_list.append(self.of.filter_window_data(nn[i*wl:(i+1)*wl]))
             
-    def plot(self, ax: plt.Axes = None):
+    def plot(self, ax: plt.Axes = None, is_calib: bool = False, coff: float = 1):
         
         is_upper = True
         if ax is None:
             is_upper = False
             _, ax = plt.subplots()
 
-        self.data_raw = np.concatenate(self._data_raw_list)
+        if is_calib:
+            self.unit = 'keV'
+        else:
+            self.unit = 'mV'
+            coff = 1
+
+        self.data_raw = np.concatenate(self._data_raw_list) * coff
         self._data_raw_list = []
-        self.data_fil = np.concatenate(self._data_fil_list)
-        self._data_fil_list = []
+        if len(self._data_fil_list) != 0:
+            self.data_fil = np.concatenate(self._data_fil_list) * coff
+            self._data_fil_list = []
+        
 
         self.sigma_fil = 0.0
 
-        self.sigma_raw = BaselineSigma._hist_gauss(ax, self.data_raw, label='Raw Noise', color='b')
+        self.sigma_raw = BaselineSigma._hist_gauss(ax, self.data_raw, label='Raw Noise', color='b', unit=self.unit)
         if self.data_fil.size != 0:
-            self.sigma_fil = BaselineSigma._hist_gauss(ax, self.data_fil, label='Filtered Noise', color='r')
+            self.sigma_fil = BaselineSigma._hist_gauss(ax, self.data_fil, label='Filtered Noise', color='r', unit=self.unit)
 
         ax.set_ylabel("Counts")
         ax.legend(loc='upper right')
         ax.grid(True)
-        ax.set_xlabel("Baseline[mV]")
+        ax.set_xlabel(f"Baseline[{self.unit}]")
 
         if not is_upper:
             plt.show(block=False)
@@ -907,13 +919,13 @@ class BaselineSigma:
         self.reset()
 
     @staticmethod
-    def _hist_gauss(ax: plt.Axes, data:np.ndarray, label='', color=None):
+    def _hist_gauss(ax: plt.Axes, data:np.ndarray, label='', color=None, unit='mV'):
 
         sigma0 = 1.4826 * np.median(np.abs(data - np.median(data)))
         binwith = np.ceil(sigma0 *100) / 1000
 
         return gauss_fit_hist(data, ax, 
-                binWidth=binwith, data_std=sigma0, nBins=50, mid = 0, unit='mV',
+                binWidth=binwith, data_std=sigma0, nBins=50, mid = 0, unit=unit,
                 label=label, color=color)
     
 

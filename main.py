@@ -8,6 +8,8 @@ import time
 import sys
 import json
 
+import matplotlib.pyplot as plt
+
 import classes.UIwidget as myUI
 import classes.events as et
 import classes.binFile as binFile
@@ -751,6 +753,8 @@ class DataAnalyzer(QMainWindow):
         self.DSB_noise_len_min: QDoubleSpinBox
         self.DSB_noise_len_max: QDoubleSpinBox
         self.SB_default_cut_num_NT: QSpinBox
+        self.GB_calibrated: QGroupBox
+        self.DSB_calibrate_coff: QDoubleSpinBox
 
         self._min_noise_cut = {
             "Baseline": self.DSB_BL_noise_min,
@@ -917,14 +921,21 @@ class DataAnalyzer(QMainWindow):
 
         self.events.add_noise(self.events.bl_sigma)
 
+        coff = 1
+        is_calib = False
+        if self.GB_calibrated.isChecked():
+            coff = self.DSB_calibrate_coff.value()
+            is_calib = True
+
         self.mpl_NT.clear_axes()
-        self.events.bl_sigma.plot(self.mpl_NT.axes)
+        self.events.bl_sigma.plot(self.mpl_NT.axes, is_calib=is_calib, coff=coff)
         self.mpl_NT.after_draw()
 
+
         text = (f"Get the baseline resolution: "
-            f"Raw baseline resolution: {self.events.bl_sigma.sigma_raw:.3f} mV") 
+            f"Raw baseline resolution: {self.events.bl_sigma.sigma_raw:.3f} {self.events.bl_sigma.unit}") 
         if self.events.bl_sigma.sigma_fil != 0.0:
-            text += f", Filtered baseline resolution: {self.events.bl_sigma.sigma_fil:.3f} mV"
+            text += f", Filtered baseline resolution: {self.events.bl_sigma.sigma_fil:.3f} {self.events.bl_sigma.unit}"
 
         self.statusBar.set_text(text, type_str="Get Baseline Resolution")
 
@@ -1081,12 +1092,22 @@ class DataAnalyzer(QMainWindow):
         self.data_file.reset_reader()
 
     # ============================================================================
-    # =========================  Save and Load JSON ==============================
+    # =========================  Save and Load JSON or Config ====================
     # ============================================================================
 
-    def _save_json(self):
-        self._check_data_file()
+    def _save_config(self):
+        self._save_general_para()
 
+
+    def _save_json(self):
+        # 保存参数
+        # 参数文件分为三个：
+        #   1. GeneralPara_vX.json: 保存一般参数，如采样率、触发窗口参数等
+        #   2. Cut_vX.Y.json: 保存cut参数，如信号和噪声的cut参数
+        #   3. OptimalFilter_vX.Y.json: 保存最优滤波器的参数
+
+
+        self._check_data_file()
         self._save_general_para()
 
         save_info = f"Save general para json success"
@@ -1101,7 +1122,7 @@ class DataAnalyzer(QMainWindow):
 
         self.statusBar.set_text(save_info, type_str="Save JSON")
 
-    def _save_general_para(self):
+    def _save_general_para(self, is_config=False):
         self._check_data_file()
         dict_config = {
             "sampling": self.sampling,
@@ -1114,10 +1135,12 @@ class DataAnalyzer(QMainWindow):
             "height_div_width": self.DSB_height_div_width.value(),
             "threshold": self.DSB_threshold.value(),
         }
+        
         json_file_name = f"GeneralPara_v{self.main_version}.json"
         with open(self.data_file.file_dir + json_file_name, "w") as f:
             json.dump(dict_config, f, indent=4, sort_keys=True)
-    
+
+
     def _load_json(self):
         self._check_data_file()
         json_file_name = f"GeneralPara_v{self.main_version}.json"
@@ -1302,112 +1325,13 @@ class DataAnalyzer(QMainWindow):
         self.statusBar.set_text("Convert and open TDMS file successfully: " + out_file)
         
 
-
-
-    # def _copy_BIN(self):
-    #     self._check_data_file()
-
-    #     if self.data_file.is_encoded:
-    #         reply0 = QMessageBox.question( self, "Warning",
-    #             "The data file is already encoded.\nDo you want to continue?",
-    #             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
-    #         )
-    #         if reply0 == QMessageBox.StandardButton.No:
-    #             self.statusBar.set_text("Copy BIN file action canceled.")
-    #             return
-        
-    #     reply = QMessageBox.question( self, "Copy BIN File with header",
-    #         f"The program will copy the BIN file with header. Please make sure follow info of raw file is correct:\n\nADC bit = {self.data_file.ADC_bit}, Voltage range(±) = {self.data_file.Vrange} V ",
-    #         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
-    #     )
-
-    #     if reply == QMessageBox.StandardButton.No:
-    #         self.statusBar.set_text("Copy BIN file action canceled.")
-    #         return
-        
-    #     sampling, ok1 = QInputDialog.getInt(self, "Input Sampling", "Please input sampling rate of File (Hz):", value=self.sampling, min=1)
-    #     if not ok1:
-    #         self.statusBar.set_text("Copy BIN file action canceled.")
-    #         return
-        
-    #     ADC_bit, ok2 = QInputDialog.getInt(self, "Input ADC bits", "Please input ADC bits of new file:", value=self.data_file.ADC_bit, min=1, max=32)
-    #     if not ok2:
-    #         self.statusBar.set_text("Copy BIN file action canceled.")
-    #         return
-        
-    #     Vrange, ok3 = QInputDialog.getDouble(self, "Input Vrange", "Please input Voltage range of new file (±V):", value=self.data_file.Vrange, min=0.01)
-    #     if not ok3:
-    #         self.statusBar.set_text("Copy BIN file action canceled.")
-    #         return
-        
-    #     self._progress = QProgressDialog( "Copying data...", "Cancel", 0, 100, self)
-    #     # self._progress.setWindowTitle("Processing")
-    #     self._progress.setMinimumDuration(0)
-    #     self._progress.setAutoClose(True)
-    #     self._progress.setAutoReset(True)
-    #     self._progress.show()
-
-    #     self._args = (sampling, ADC_bit, Vrange)
-    #     # 线程
-    #     self._copy_thread = QtCore.QThread(self)
-    #     self._copy_thread.started.connect(self._copy_BIN_worker)
-    #     self._copy_thread.finished.connect(self._copy_thread.deleteLater)
-
-    #     self._abort_copy = False
-    #     self._progress.canceled.connect(self._copy_BIN_canceled)
-
-    #     self._copy_thread.start()
-
-    # def _copy_BIN_canceled(self):
-    #     self._abort_copy = True
-
-    # @QtCore.pyqtSlot()
-    # def _copy_BIN_finished(self):
-    #     if self._abort_copy:
-    #         QMessageBox.information(self, "Aborted", "Copy BIN file action canceled.")
-    #     else:
-    #         QMessageBox.information(self, "Success", "Copy BIN file finished.")
-        
-    #     self._progress = None
-    #     self._copy_thread = None
-    #     self._args = None
-    #     self._abort_copy = None
-        
-    # def _copy_BIN_worker(self):
-    #     try:
-    #         step = int(1e6)
-    #         num_chunk = int(np.ceil(self.data_file.total_length / step))
-    #         sampling, ADC_bit, Vrange = self._args
-    #         temp_open_file = binFile.dataFile(sampling=sampling, ADC_bit=self.data_file.ADC_bit, Vrange=self.data_file.Vrange)
-    #         temp_open_file.open(self.data_file.file_path)
-
-    #         out_file = self.data_file.file_dir + self.data_file.file_name + "_copy.BIN2"
-    #         for k in temp_open_file.copy_file_with_header(out_file=out_file, sampling=sampling, ADC_bit=ADC_bit, Vrange=Vrange, step=step):
-    #             if self._abort_copy:
-    #                 break
-
-    #             percent = int((k + 1) / num_chunk * 100)
-    #             QtCore.QMetaObject.invokeMethod( self._progress, "setValue", 
-    #                 QtCore.Qt.ConnectionType.QueuedConnection, QtCore.Q_ARG(int, percent))
-                
-    #         if self._abort_copy and os.path.exists(out_file):
-    #             os.remove(out_file)
-                
-    #         QtCore.QMetaObject.invokeMethod(self, "_copy_BIN_finished", QtCore.Qt.ConnectionType.QueuedConnection)
-
-    #     except:
-    #         raise
-    #     finally:
-    #         self._copy_thread.quit()
-
-
 #############################################################################################################
 def excepthook(exctype, value, tb):
     global mainWin
     if isinstance(value, appError.AppError):
         QMessageBox.critical(mainWin, value.title, str(value))
     else:
-        QMessageBox.critical(None, "程序错误", f"发生未预期的错误:\n{str(value)}")
+        QMessageBox.critical(mainWin, "程序错误", f"发生未预期的错误:\n{str(tb)}")
         sys.__excepthook__(exctype, value, tb)
 
 if __name__ == '__main__':

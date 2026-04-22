@@ -865,7 +865,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>216</width>
+             <width>198</width>
              <height>465</height>
             </rect>
            </property>
@@ -1706,7 +1706,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>210</width>
+             <width>68</width>
              <height>465</height>
             </rect>
            </property>
@@ -3351,6 +3351,12 @@
              <property name="title">
               <string>Fit Signal Template</string>
              </property>
+             <property name="checkable">
+              <bool>false</bool>
+             </property>
+             <property name="checked">
+              <bool>false</bool>
+             </property>
              <widget class="QPushButton" name="PB_fit_template">
               <property name="geometry">
                <rect>
@@ -4220,7 +4226,7 @@
            <property name="geometry">
             <rect>
              <x>70</x>
-             <y>270</y>
+             <y>260</y>
              <width>61</width>
              <height>23</height>
             </rect>
@@ -4233,7 +4239,7 @@
            <property name="geometry">
             <rect>
              <x>170</x>
-             <y>270</y>
+             <y>260</y>
              <width>64</width>
              <height>23</height>
             </rect>
@@ -4267,7 +4273,7 @@
            <property name="geometry">
             <rect>
              <x>80</x>
-             <y>330</y>
+             <y>300</y>
              <width>61</width>
              <height>23</height>
             </rect>
@@ -4279,8 +4285,8 @@
           <widget class="QCheckBox" name="CB_is_align">
            <property name="geometry">
             <rect>
-             <x>170</x>
-             <y>330</y>
+             <x>180</x>
+             <y>300</y>
              <width>71</width>
              <height>23</height>
             </rect>
@@ -4298,8 +4304,8 @@
           <widget class="QPushButton" name="PB_get_NT">
            <property name="geometry">
             <rect>
-             <x>110</x>
-             <y>430</y>
+             <x>130</x>
+             <y>350</y>
              <width>80</width>
              <height>23</height>
             </rect>
@@ -4324,7 +4330,7 @@
           <widget class="QPushButton" name="PB_default_cut_NT">
            <property name="geometry">
             <rect>
-             <x>120</x>
+             <x>110</x>
              <y>20</y>
              <width>81</width>
              <height>23</height>
@@ -4332,19 +4338,6 @@
            </property>
            <property name="text">
             <string>Default cut</string>
-           </property>
-          </widget>
-          <widget class="QPushButton" name="PB_get_baseline_resolution">
-           <property name="geometry">
-            <rect>
-             <x>90</x>
-             <y>380</y>
-             <width>131</width>
-             <height>23</height>
-            </rect>
-           </property>
-           <property name="text">
-            <string>Baseline resolution</string>
            </property>
           </widget>
           <widget class="QSpinBox" name="SB_default_cut_num_NT">
@@ -4373,6 +4366,102 @@
            </property>
            <property name="value">
             <number>2000</number>
+           </property>
+          </widget>
+          <widget class="QGroupBox" name="GB_calibrated">
+           <property name="geometry">
+            <rect>
+             <x>40</x>
+             <y>390</y>
+             <width>251</width>
+             <height>61</height>
+            </rect>
+           </property>
+           <property name="title">
+            <string>Calibrated?</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_22">
+            <property name="spacing">
+             <number>1</number>
+            </property>
+            <property name="leftMargin">
+             <number>9</number>
+            </property>
+            <property name="topMargin">
+             <number>1</number>
+            </property>
+            <property name="rightMargin">
+             <number>9</number>
+            </property>
+            <property name="bottomMargin">
+             <number>1</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="label_amp_6">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>3</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>23</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>coff[keV/mV]:</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="DSB_calibrate_coff">
+              <property name="maximumSize">
+               <size>
+                <width>80</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="decimals">
+               <number>5</number>
+              </property>
+              <property name="maximum">
+               <double>1000000.000000000000000</double>
+              </property>
+              <property name="value">
+               <double>1.000000000000000</double>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QPushButton" name="PB_get_baseline_resolution">
+           <property name="geometry">
+            <rect>
+             <x>100</x>
+             <y>470</y>
+             <width>131</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Baseline resolution</string>
            </property>
           </widget>
          </widget>
