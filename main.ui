@@ -771,7 +771,7 @@
        <enum>QTabWidget::Triangular</enum>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>3</number>
       </property>
       <property name="elideMode">
        <enum>Qt::ElideMiddle</enum>
@@ -4976,45 +4976,6 @@
          </widget>
         </item>
        </layout>
-      </widget>
-      <widget class="QWidget" name="Tab_Pulse_Viewer">
-       <attribute name="title">
-        <string>Pulse Viewer</string>
-       </attribute>
-       <widget class="MPLwidget" name="mpl_FT_2" native="true">
-        <property name="geometry">
-         <rect>
-          <x>40</x>
-          <y>60</y>
-          <width>571</width>
-          <height>381</height>
-         </rect>
-        </property>
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-       </widget>
-       <widget class="Line" name="line_5">
-        <property name="geometry">
-         <rect>
-          <x>660</x>
-          <y>10</y>
-          <width>3</width>
-          <height>464</height>
-         </rect>
-        </property>
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-       </widget>
-      </widget>
-      <widget class="QWidget" name="Tab_browser">
-       <attribute name="title">
-        <string>Browser</string>
-       </attribute>
       </widget>
      </widget>
     </item>

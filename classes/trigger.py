@@ -143,7 +143,7 @@ class Trigger:
 
         threshold = self.threshold / 1000
         hDv = self.height_div_width / self.sampling
-        nthresh = 20
+        nthresh = 5
 
         for i in range(self.num_events):
             
