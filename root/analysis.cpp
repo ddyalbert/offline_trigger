@@ -23,7 +23,7 @@ void analysis()
     Double_t Amp_raw;
     Double_t Baseline;
     Double_t pk_interval;
-    Double_t amp_shift;
+    Double_t Amp_shift;
     Double_t ratio_fit;
     Double_t DT;
     Double_t RT;
@@ -42,7 +42,7 @@ void analysis()
     tree->SetBranchAddress("chi2_raw", &chi2_raw);  
 
     tree->SetBranchAddress("isValid", &isValid);
-    tree->SetBranchAddress("amp_shift", &amp_shift);
+    tree->SetBranchAddress("Amp_shift", &Amp_shift);
     tree->SetBranchAddress("ratio_fit", &ratio_fit);
     
 
@@ -85,13 +85,13 @@ void analysis()
         if (!isValid) continue;
         if (Amp_fil <= 0) continue; 
 
-        if (DT < 7 || DT > 10.5) continue;
-        if (RT < 3.2 || RT > 3.7) continue;
-        if (chi2_fil > 0.03) continue;
+        // if (DT < 7   || DT > 10.5) continue;
+        // if (RT < 3.2 || RT > 3.7 ) continue;
+        if (chi2_fil > 0.02) continue;
         // if (chi2_raw > 0.02) continue;
         
 
-        Double_t amp = Amp_fil;
+        Double_t amp = Amp_fil + Amp_shift;
         // amp = amp / (pp[0] + pp[1] * Baseline);
         
         hist_amp->Fill(amp);
@@ -109,12 +109,12 @@ void analysis()
 
         hist_E->Fill(E);
 
-        if(amp < 0.81 || amp > 0.9) continue;
-        if(isSaveParams){
-            if (amp < pp[0] + pp[1] * Baseline - cc) continue;
-            if (amp > pp[0] + pp[1] * Baseline + cc) continue;
-        }
-        // if(Baseline < -2.1 || Baseline > -1.7) continue;
+        // if(amp < 0.81 || amp > 0.9) continue;
+        // if(isSaveParams){
+        //     if (amp < pp[0] + pp[1] * Baseline - cc) continue;
+        //     if (amp > pp[0] + pp[1] * Baseline + cc) continue;
+        // }
+        // if(Baseline < -2.1 || Baseline > -1.7) continue;s
         graph_stabilize->AddPoint(Baseline, amp);
     }
     std::cout << "num of events after  cut = " << n_cut << std::endl;
@@ -168,8 +168,8 @@ void analysis()
     graph_stabilize->SetMarkerSize(0.2);
     graph_stabilize->Draw("AP+");
 
-    TF1 *linefit = new TF1("linefit", "[0] + [1] * x", -2.4, -1.8);
-    graph_stabilize->Fit(linefit);
+    // TF1 *linefit = new TF1("linefit", "[0] + [1] * x", -2.4, -1.8);
+    // graph_stabilize->Fit(linefit);
 
     // std::ofstream outFile("./.temp/fit_params.txt");
     // outFile << linefit->GetParameter(0) << std::endl;

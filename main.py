@@ -10,7 +10,7 @@ import json
 
 import matplotlib.pyplot as plt
 
-import classes.UIwidget as myUI
+import widgets.UIwidget as myUI
 import classes.events as et
 import classes.binFile as binFile
 import classes.trigger as tri

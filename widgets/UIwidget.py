@@ -7,6 +7,11 @@ from PyQt5 import QtCore, QtWidgets
 from typing import Dict
 from pathlib import Path
 
+import sys
+import re
+import numpy as np
+import pandas as pd
+
 
 # ---------------------------------------------------------------
 # MPLwidget -----------------------------------------------------
@@ -93,11 +98,6 @@ class  MPLwidget(QtWidgets.QWidget):
 # ----------------------------------------------------------------
 # ObjectBrowserDialog --------------------------------------------
 # ----------------------------------------------------------------
-
-import sys
-import re
-import numpy as np
-import pandas as pd
 
 class ObjectBrowserDialog(QtWidgets.QDialog):
     def __init__(self, obj, parent=None):
@@ -392,4 +392,36 @@ class FileComboBox(QtWidgets.QComboBox):
         else:
             self.fileChanged.emit("")
 
-            
+
+class MyPlainTextEdit(QtWidgets.QPlainTextEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.placeholder = "第一行提示\n第二行提示\n第三行提示"
+
+        # self._show_placeholder()
+
+        QtCore.QTimer.singleShot(0, self._show_placeholder)
+
+    def set_placeholder(self, placeholder: str):
+        self.placeholder = placeholder
+        self._show_placeholder()
+
+    def _show_placeholder(self):
+        self.setPlainText(self.placeholder)
+        self.setStyleSheet("color: gray;")
+        self._is_placeholder = True
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+
+        if self._is_placeholder:
+            self.clear()
+            self.setStyleSheet("color: black;")
+            self._is_placeholder = False
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+
+        if not self.toPlainText().strip():
+            self._show_placeholder()
