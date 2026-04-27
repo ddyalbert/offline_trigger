@@ -14,6 +14,7 @@ import numpy as np
 class PlotWidget(QWidget):
 
     is_df: bool = None
+
     df: pd.DataFrame = None
     tree: EventsTree = None
 
@@ -39,14 +40,11 @@ class PlotWidget(QWidget):
         self.tabWidget: QTabWidget
         # tab name: [0: Tab_graph, 1: Tab_hist, 2: Tab_hist_2d]
 
-        self.Sli_nbin: QSlider
-        self.Sli_nbinX: QSlider
-        self.Sli_nbinY: QSlider
-        self.Sli_point_size: QSlider
-
         self.PTE_cut: MyPlainTextEdit
         self.PTE_cut.set_placeholder("Please input cut condition here, for example: \n\nAmp_raw > 0\n1 < DT < 2\ncos(pk_time) < 0.5")
-
+        
+        self._init_slider()
+        
         self.mpl_widget.clear_axes()
         
         self.tabWidget.currentChanged.connect(self._change_tab)
@@ -55,10 +53,35 @@ class PlotWidget(QWidget):
         self.CoB_x.currentIndexChanged.connect(self._change_xy_axis)
         self.CoB_y.currentIndexChanged.connect(self._change_xy_axis)
 
+    def _init_slider(self):
+        self.Sli_nbin: QSlider
+        self.Sli_nbinX: QSlider
+        self.Sli_nbinY: QSlider
+        self.Sli_point_size: QSlider
+
+        self.SB_nbin: QSlider
+        self.SB_nbinX: QSpinBox
+        self.SB_nbinY: QSpinBox
+        self.SB_point_size: QSpinBox
+
+        self.__pair_slider_spinbox(self.SB_nbin, self.Sli_nbin)
+        self.__pair_slider_spinbox(self.SB_nbinX, self.Sli_nbinX)
+        self.__pair_slider_spinbox(self.SB_nbinY, self.Sli_nbinY)
+        self.__pair_slider_spinbox(self.SB_point_size, self.Sli_point_size)
+
         self.Sli_nbin.valueChanged.connect(self.plot)
         self.Sli_nbinX.valueChanged.connect(self.plot)
         self.Sli_nbinY.valueChanged.connect(self.plot)
         self.Sli_point_size.valueChanged.connect(self.plot)
+
+    def __pair_slider_spinbox(self, spinbox: QSpinBox, slider: QSlider):
+        slider.sliderMoved.connect(spinbox.setValue)
+        spinbox.editingFinished.connect(lambda: slider.setValue(spinbox.value()))
+
+        spinbox.setMinimum(slider.minimum())
+        spinbox.setMaximum(slider.maximum())
+        spinbox.setValue(slider.value())
+        spinbox.setSingleStep(slider.singleStep())
 
 
     def load_data_df(self, data: pd.DataFrame):
@@ -70,12 +93,22 @@ class PlotWidget(QWidget):
         self.CoB_y.clear()
         self.CoB_x.addItems(self.df.columns)
         self.CoB_y.addItems(self.df.columns)
-        
-    def load_data_tree(self, data: EventsTree):
-        self.is_df = False
-        self.tree = data
-        self.df = None
 
+        if self.x_name is not None and self.x_name in self.df.columns:
+            self.CoB_x.setCurrentText(self.x_name)
+        else:
+            self.CoB_x.setCurrentIndex(0)
+        if self.y_name is not None and self.y_name in self.df.columns:
+            self.CoB_y.setCurrentText(self.y_name)
+        else:
+            self.CoB_y.setCurrentIndex(0)
+
+        self._change_xy_axis()
+        
+    # def load_data_tree(self, data: EventsTree):
+    #     self.is_df = False
+    #     self.tree = data
+    #     self.df = None
 
     def _change_tab(self):
         if self.tabWidget.currentIndex() == 1:
@@ -94,10 +127,12 @@ class PlotWidget(QWidget):
         self.y_name = self.CoB_y.currentText()
         
 
-    def plot(self):        
+    def plot(self):
         if self._colorbar is not None:
             self._colorbar.remove()
             self._colorbar = None
+        if self.is_df is None:
+            return
 
         if self.tabWidget.currentIndex() == 0:
             self.__plot_graph()
