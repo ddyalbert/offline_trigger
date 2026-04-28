@@ -720,7 +720,7 @@
        </widget>
       </item>
       <item>
-       <widget class="MyPlainTextEdit" name="PTE_cut">
+       <widget class="CutPlainTextEdit" name="PTE_cut">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -748,7 +748,7 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>MyPlainTextEdit</class>
+   <class>CutPlainTextEdit</class>
    <extends>QPlainTextEdit</extends>
    <header location="global">./widgets/UIwidget.h</header>
   </customwidget>

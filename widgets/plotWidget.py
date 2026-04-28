@@ -5,7 +5,7 @@ import sys, os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from widgets.UIwidget import MPLwidget, MyPlainTextEdit
+from widgets.UIwidget import MPLwidget, CutPlainTextEdit
 from classes.events import EventsTree
 import pandas as pd
 import numpy as np
@@ -40,7 +40,7 @@ class PlotWidget(QWidget):
         self.tabWidget: QTabWidget
         # tab name: [0: Tab_graph, 1: Tab_hist, 2: Tab_hist_2d]
 
-        self.PTE_cut: MyPlainTextEdit
+        self.PTE_cut: CutPlainTextEdit
         self.PTE_cut.set_placeholder("Please input cut condition here, for example: \n\nAmp_raw > 0\n1 < DT < 2\ncos(pk_time) < 0.5")
         
         self._init_slider()
