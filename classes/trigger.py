@@ -1,3 +1,19 @@
+'''
+Trigger 类：
+    为图形化界面提供触发相关的接口
+    包括触发参数设置、触发数据导入、触发结果输出等功能
+    内部存储触发参数、触发数据、触发结果等
+    储存形式：
+        peaks: 原始数据峰位, 单位为采样点(sample point)
+        peaks_f: Filter后的峰位, 单位为采样点(sample point)
+        pulse_paras: 脉冲参数, 最终写入EventsTree
+
+PulseParas 类：
+    为Trigger类提供单个脉冲的参数的计算
+    包括脉冲的时间、延迟、高度、宽度等参数
+    
+'''
+
 import numpy as np
 from typing import Optional, Dict, Any
 from scipy import signal
@@ -37,12 +53,15 @@ class Trigger:
     of: Optional[OF] = None
 
     def __init__(self, sampling: int , threshold: float, width_min: float, height_div_width: float):
+        # 初始化触发参数，包括采样率、阈值、最小宽度、最小高宽比
         self.sampling = sampling
         self.threshold = threshold
         self.width_min = width_min
         self.height_div_width = height_div_width
 
     def importData(self, v: np.ndarray = None, pulse_paras: Optional[pd.DataFrame] = None):
+        # 导入数据，可以包括原始数据和脉冲参数
+        
         self.v = v
         self.vf = None
         self.pulse_paras = pulse_paras
@@ -53,11 +72,14 @@ class Trigger:
             self.num_events = 0
             self.baseline = 0.0
         else:
+            # 导入脉冲参数
             self.peaks = (pulse_paras['pk_time'] * self.sampling).to_numpy().astype(int)
+            # 如果已经Filter，将Filter后的peaks也导入
             if 'pk_delay' in pulse_paras.columns:
                 self.peaks_f = (pulse_paras['pk_delay'] * self.sampling/1000).to_numpy().astype(int) + self.peaks
             else:
                 self.peaks_f = None
+
             self.pulse_paras['isValid'] = self.pulse_paras['isValid'].astype(bool)
             self.num_events = self.peaks.size
             self.baseline = pulse_paras['Baseline'].mean()
@@ -84,6 +106,12 @@ class Trigger:
     # raw data trigger ==============================================================
     #================================================================================
     def find_peaks(self):
+        # 查找原始数据中的峰位，存入peaks属性
+        # 主要cut: prominence, width, distance, rel_height
+        #   prominence: 峰位 prominence，单位为V
+        #   width: 峰位宽度，单位为ms
+        #   distance: 峰位之间的距离，单位为ms，固定为3ms
+
         if self.v is None:
             raise ValueError("Data has not been imported")
         threshold = self.threshold / 1000
@@ -94,7 +122,13 @@ class Trigger:
         self.num_events = self.peaks.size
     
     def get_pulse_parameters(self, segment: Optional[int] = None):
-        # segment 留给上层类的接口，0 代表v是中间数据段， - 1 代表v是开始数据段， 1 代表v是结束数据段，None 代表v是完整数据段
+        # 计算脉冲参数，存入pulse_paras属性
+        #   segment 留给上层类的接口: 
+        #       0    代表v是中间数据段
+        #       -1   代表v是开始数据段 
+        #       1    代表v是结束数据段
+        #       None 代表v是完整数据段
+
         if self.peaks is None:
             raise ValueError("Peaks have not been found")
         if self.win_len == 0:
@@ -109,10 +143,11 @@ class Trigger:
 
         threshold = self.threshold / 1000
         hDv = self.height_div_width / self.sampling
-        nthresh = 3
+        nthresh = 5
 
         for i in range(self.num_events):
-
+            
+            # 对高宽比进行筛选
             if self.prominences[i] < nthresh * threshold and self.prominences[i] < hDv * self.widths[i]:
                 continue
 
@@ -140,12 +175,13 @@ class Trigger:
                 if self.prominences[i] < nthresh * threshold and pulse_para["Amp_raw"] < threshold:
                     continue
                     
-                pulse_para['prominence'] = self.prominences[i] * 1000
-                pulse_para['width'] = self.widths[i] * 1000 / self.sampling
-                pulse_para['pk_time'] = self.peaks[i] / self.sampling
-                pulse_para['pk_interval'] = pulse_para['pk_time'] - prev_pk_time
-                prev_pk_time = pulse_para['pk_time']
+            pulse_para['prominence'] = self.prominences[i] * 1000
+            pulse_para['width'] = self.widths[i] * 1000 / self.sampling
+            pulse_para['pk_time'] = self.peaks[i] / self.sampling
+            pulse_para['pk_interval'] = pulse_para['pk_time'] - prev_pk_time
+            prev_pk_time = pulse_para['pk_time']
 
+            # 此处的pulse_para是字典，没有填入的元素会在DataFrame中自动填充为0.0
             tf[i] = True
             rows.append(pulse_para)
             
@@ -156,6 +192,7 @@ class Trigger:
         self.baseline = self.pulse_paras['Baseline'].mean()
         self.peaks = self.peaks[tf]
 
+        # 清空prominences和widths，避免占用多余内存
         self.prominences = None
         self.widths = None
 
@@ -179,16 +216,26 @@ class Trigger:
 
         for i in range(self.num_events):          
             vv = self.vf[self.peaks[i] - pk_width : self.peaks[i] + pk_width]
+            if vv.size == 0:
+                self.peaks_f[i] = self.peaks[i]
+                continue
             ind_max = np.argmax(vv)
             self.peaks_f[i] = self.peaks[i] - pk_width + ind_max
 
 
+
     def get_pulse_parameters_filter(self, segment: Optional[int] = None):
-        # segment 留给上层类的接口，0 代表v是中间数据段， - 1 代表v是开始数据段， 1 代表v是结束数据段，None 代表v是完整数据段
+        # 计算filter后的脉冲参数，存入pulse_paras属性
+        #   segment 留给上层类的接口: 
+        #       0    代表v是中间数据段
+        #       -1   代表v是开始数据段 
+        #       1    代表v是结束数据段
+        #       None 代表v是完整数据段
+
         if self.peaks_f is None:
             self.trigger_with_filter()
         
-        
+        # 创建PulseParas对象，用于计算脉冲参数
         bl_start = self.win_len - self.pk_posi
         pp = PulseParas(self.sampling, 
             {'win_len': self.win_len, 'bl_start': bl_start, 'bl_end': self.bl_end + bl_start, 'pk_posi': self.win_len, 'data_len': 2 * self.win_len,} )
@@ -219,7 +266,6 @@ class Trigger:
                 pp.get_filtered_amplitude_para()
                 pp.get_quality_para()
                 pulse_para = pp.export_pulse_paras(type='fil')
-
 
             tf[i] = True
             rows.append(pulse_para)
@@ -382,7 +428,8 @@ class PulseParas:
 
     # v: np.ndarray # [V]
     # vf: Optional[np.ndarray] # [V]
-    # pulse_norm: Optional[np.ndarray] # [1]
+    # pulse_norm: Optional[np.ndarray] # [1] # 归一化后的原始数据
+
 
     # template: Optional[np.ndarray] # [V]
     # template_fil: Optional[np.ndarray] # [V]
@@ -459,7 +506,7 @@ class PulseParas:
             if k in PulseParas.__dict__:
                 setattr(self, k, v)
                 
-        if self.Amp_raw is not None:
+        if self.Amp_raw is not None and self.isValid:
             self.pulse_norm = (self.v[self.bl_start:self.bl_start + self.win_len] - self.Baseline) / self.Amp_raw
         
 

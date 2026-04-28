@@ -60,6 +60,8 @@ def get_file(parent_window = None, filter="All file(*.*)" , title="Choose a file
         return ""
     
 def extract_file_info(file_path: str):
+    # such as "/home/duandy/disk/bolometer/Data/20230801_123456.BIN2"
+    # return "/home/duandy/disk/bolometer/Data/", "20230801_123456", ".BIN2"
     path_obj = Path(file_path)
     file_dir = str(path_obj.parent) + "/"
     file_name = str(path_obj.stem)

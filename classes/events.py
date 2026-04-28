@@ -1,8 +1,14 @@
+'''
+EventsTree 类：
+    为图形界面提供事件树的读写功能
+    包括对不同版本的数据处理的管理
+'''
+
 from __future__ import annotations
 import uproot
 import pandas as pd
 import numpy as np
-from typing import Optional, Dict, Iterator
+from typing import Optional, Dict, Iterator, Callable
 import json
 import os
 
@@ -48,8 +54,12 @@ class EventsTree:
     pk_posi: float
     bl_end: float
 
-        
+    # 初始化和版本管理 ============================================================================
     def __init__(self, data_file: DataFile, win_para: Dict[str, float], version: list[int]):
+        # data_file: 数据文件对象
+        # win_para: window参数，包括win_len, pk_posi, bl_end
+        # version: 版本号，包括main_version和template_version
+
         self.data_file = data_file
         self.file_dir = data_file.file_dir
         self.sampling = data_file.sampling
@@ -62,12 +72,14 @@ class EventsTree:
         self.bl_end = win_para["bl_end"]
     
     def set_version(self, main_version: int, template_version: int):
+        # 设置版本号，同时更新对应的signal/noise树文件名和json文件名
         self.main_version = main_version
         self.template_version = template_version
 
         self.json_file_name = f"TemplateCut_v{self.main_version}.{self.template_version}.json"
-        self._set_file_name()
+        self._set_signal_file_name()
 
+        # 设置NoiseTree文件，同时初始化写入和读取对象
         noise_tree_name = f"Noise_v{self.main_version}.root"
         if self.noise_tree_name == noise_tree_name:
             return
@@ -77,7 +89,9 @@ class EventsTree:
         self.tree_write_noise = None
         self.tree_read_noise = None
         
-    def _set_file_name(self):
+    def _set_signal_file_name(self):
+        # 设置SignalTree文件，优先使用Filtered后的Tree文件，若不存在则使用原始Tree文件
+        # 同时初始化写入和读取对象
         tree_name = f"SignalFiltered_v{self.main_version}.{self.template_version}.root"
         if not os.path.exists(self.file_dir + tree_name):
             tree_name = f"Signal_v{self.main_version}.root"
@@ -91,12 +105,13 @@ class EventsTree:
         self.tree_read_signal = None
 
     def change_dir(self, data_file: DataFile):
+        # 改变主目录，同时更新数据文件对象和文件路径
         if self.data_file == data_file:
             return
         self.data_file = data_file
         self.file_dir = data_file.file_dir
         self.sampling = data_file.sampling
-        self._set_file_name()
+        self._set_signal_file_name()
 
         self.index_cut_signal = None
         self.index_cut_noise = None
@@ -106,8 +121,41 @@ class EventsTree:
         self.tree_write_noise = None
         self.tree_read_noise = None
     
-    # 导入和打开树 -----------------------------------------------------------
+    # 导入和打开树 ============================================================================
+    def delete_tree(self, tree_name: str = "signal_raw"):
+        # 删除SignalTree或NoiseTree文件，同时重置对应的写入和读取对象
+        # tree_name: "signal_raw" or "signal_fil" or "noise"
+
+        if tree_name == "signal_raw":
+            tree_name = f"Signal_v{self.main_version}.root"
+        elif tree_name == "signal_fil":
+            tree_name = f"SignalFiltered_v{self.main_version}.{self.template_version}.root"
+        elif tree_name == "noise":
+            tree_name = f"Noise_v{self.main_version}.root"
+        else:
+            raise ValueError(f"Invalid tree name: {tree_name}")
+        
+        try:
+            os.remove(self.file_dir + tree_name)
+        except:
+            pass
+        
+        finally:
+            if tree_name.startswith("signal"):
+                self.index_cut_signal = None
+                self.tree_write_signal = None
+                self.tree_read_signal = None
+                self.num_signal = 0
+            elif tree_name == "noise":
+                self.index_cut_noise = None
+                self.tree_write_noise = None
+                self.tree_read_noise = None
+                self.num_noise = 0
+
+
+
     def recreate_tree_siganl(self, is_filtered: bool = False):
+        # 重新创建SignalTree，若is_filtered为True，则创建Filtered后的Tree，否则创建原始Tree
         branch_type = {
                 "Baseline": "float64",
                 "BL_RMS": "float64",
@@ -149,6 +197,7 @@ class EventsTree:
         self.num_signal = 0
 
     def write_tree_signal(self, df: pd.DataFrame):
+        # 将DataFrame写入SignalTree, a+模式
         if self.tree_write_signal is None:
             self.recreate_tree_siganl()
         
@@ -156,6 +205,13 @@ class EventsTree:
         self.num_signal += len(df)
 
     def open_tree_signal(self, is_filtered: Optional[bool] = None):
+        # 打开SignalTree
+        #   若is_filtered为True，则打开Filtered后的Tree，否则打开原始Tree
+        #   若is_filtered为None，则根据self.signal_tree_name判断是否为Filtered后的Tree
+
+        # self.signal_tree_name对应的文件不存在，则降级为原始Tree, 并打开原始Tree
+        # 若原始Tree也不存在，设置self_read_signal为None, num_signal为0, 抛出异常
+
         if is_filtered is not None:
             if is_filtered:
                 self.signal_tree_name = f"SignalFiltered_v{self.main_version}.{self.template_version}.root"
@@ -175,6 +231,7 @@ class EventsTree:
                 raise appError.DataFileNotOpenedError(f"The root file of signal is not found. Please pre-trigger first.") from None
 
     def open_tree_noise(self):
+        # 打开NoiseTree，如果不存在则抛出异常
         try:
             self.tree_read_noise: uproot.TBranch = uproot.open(self.file_dir + self.noise_tree_name + ":tree")
             self.num_noise = self.tree_read_noise.num_entries
@@ -184,6 +241,8 @@ class EventsTree:
             raise appError.DataFileNotOpenedError(f"The root file of noise is not found. Please find noise first.") from None
           
     def find_tree_noise(self, step: int = 500):
+        # NoiseTree 依附于原始数据的SignalTree
+        # 
         if self.tree_read_signal is None:
             self.open_tree_signal()
 
@@ -211,39 +270,9 @@ class EventsTree:
             k += 1
             yield k
 
-    # 读取树 和 处理树 --------------------------------------------------------------------
-    def read_tree_signal_by_time(self, branches: Optional[list[str]] = None, start_time: float = 0, length: float = 1000):
-        if self.tree_read_signal is None:
-            self.open_tree_signal()
-
-        if branches is None:
-            branches = self.tree_read_signal.keys()
-        
-        list_df: list[pd.DataFrame] = []
-        for batch in self.tree_read_signal.iterate(branches, step_size=500, library="pd"):
-            batch: pd.DataFrame
-            if batch.empty:
-                continue
-            if batch.iloc[-1]["pk_time"] < start_time:
-                continue
-            if batch.iloc[0]["pk_time"] >= start_time + length:
-                break
-
-            list_df.append(batch)
-
-        if len(list_df) == 0:
-            res = pd.DataFrame(columns=branches)
-        else:
-            res = pd.concat(list_df, ignore_index=True)
-            list_df = []
-        
-        res = res[(res["pk_time"] >= start_time) & (res["pk_time"] < start_time + length)].copy()
-        res.index = pd.RangeIndex(len(res))
-        res["pk_time"] -= start_time
-        return res
-
+    # 读取树 =====================================================================================
     def _read_tree(self, branches: Optional[list[str]] = None, tree_name: str = "signal", step: int = 500) -> Iterator[pd.DataFrame]:
-        # 输出分段的dataframe, 对应的起始时间和时间步长
+        # 循环输出SignalTree或NoiseTree中的数据，步进为step
         tree = None
         if tree_name == "signal":
             if self.tree_read_signal is None:
@@ -266,7 +295,47 @@ class EventsTree:
 
             yield batch
 
+    def read_tree_signal_by_time(self, branches: Optional[list[str]] = None, start_time: float = 0, length: float = 1000):
+        # 读取SignalTree中指定时间范围内的数据，返回DataFrame
+        #   branches: 需要读取的分支列表，默认为None，表示读取所有分支
+        #   start_time: 起始时间，默认为0
+        #   length: 时间范围，默认为1000秒
+        #   返回值: 包含指定时间范围内的数据的DataFrame，索引从0开始，pk_time以start_time为零点
+        
+        if self.tree_read_signal is None:
+            self.open_tree_signal()
+        if branches is None:
+            branches = self.tree_read_signal.keys()
+        
+        list_df: list[pd.DataFrame] = []
+        for batch in self.tree_read_signal.iterate(branches, step_size=500, library="pd"):
+            batch: pd.DataFrame
+            if batch.empty:
+                continue
+            if batch.iloc[-1]["pk_time"] < start_time:
+                continue
+            if batch.iloc[0]["pk_time"] >= start_time + length:
+                break
+
+            list_df.append(batch)
+
+        if len(list_df) == 0:
+            res = pd.DataFrame(columns=branches)
+        else:
+            res = pd.concat(list_df, ignore_index=True)
+            list_df = []
+        
+        res: pd.DataFrame = res[(res["pk_time"] >= start_time) & (res["pk_time"] < start_time + length)]
+        res = res.reset_index(drop=True)
+        res["pk_time"] -= start_time
+        return res
+
+
     def get_best_index(self, valueName: str, tree_name: str = "signal", index: Optional[pd.Index] = None, num = 1000):
+        # 获取SignalTree或NoiseTree中指定分支的num个最小值的索引，用于自动Cut事件
+        #   valueName: 需要比较的分支名称, 可选值为"BL_RMS", "BL_slope", "Amp_raw", "pk_shift", "BL_p2p"
+        #   tree_name: 树的名称，默认为"signal"，可以为"signal"或"noise"
+        #   index: 要比较的索引，默认为None，表示使用默认索引
         if index is None:
             if tree_name == "signal":
                 index = self.index_cut_signal
@@ -295,6 +364,11 @@ class EventsTree:
         raise ValueError(f"valueName {valueName} is not supported.")
     
     def get_max_min_value(self, branches: Optional[list[str]] = None, tree_name: str = "signal", index: Optional[pd.Index] = None):
+        # 获取SignalTree或NoiseTree中指定分支的最大最小值
+        #   branches: 需要比较的分支列表，默认为None，表示比较所有分支
+        #   tree_name: 树的名称，默认为"signal"，可以为"signal"或"noise"
+        #   index: 要比较的索引，默认为None，表示使用默认索引
+        #   返回值: 包含最大最小值的字典，键为分支名称，值为最大最小值的DataFrame
         if index is None:
             if tree_name == "signal":
                 index = self.index_cut_signal
@@ -510,7 +584,11 @@ class EventsTree:
 #######################################################################################################
 # EventsDataFrame -------------------------------------------------------------------------------------
 #######################################################################################################
-
+'''
+EventsDataFrame类
+    用于管理更小的事件数据
+    也用于EventsTree类的分块处理接口
+'''
 class EventsDataFrame:
 
     v: Optional[np.ndarray] = None
@@ -529,6 +607,7 @@ class EventsDataFrame:
     num_noise_cut: int = 0
 
 
+    # 初始化 EventsDataFrame ===============================================================================
     def __init__(self, sampling: int, win_len: float, pk_posi: float, bl_end: float):
         self.sampling = sampling
         self.set_win_para(win_len, pk_posi, bl_end)
@@ -537,7 +616,8 @@ class EventsDataFrame:
         self.win_len = win_len
         self.pk_posi = pk_posi
         self.bl_end = bl_end
-    
+
+    # 导入signal/noise/data数据和cut =========================================================================
     def import_signal(self, df: pd.DataFrame, index_cut: pd.Index = None):
         self.df_signal = df
         self.index_cut_signal = index_cut
@@ -547,9 +627,12 @@ class EventsDataFrame:
         self.index_cut_noise = index_cut
 
     def import_data(self, v: np.ndarray):
+        # 导入data数组，一般用于小规模数据处理
+        # 正式的大规模数据处理应使用EventsTree类的分块处理接口，使用上层DataFile类读取数据
         self.v = v
 
-    def _get_noise_data(self, data_file: Optional[DataFile] = None):
+    def _get_noise_data(self, data_file: Optional[DataFile] = None) -> Callable[[float, float], np.ndarray]:
+        # 获取读取噪声Data的函数
         if data_file is not None:
             vv = lambda start_time, noise_len: data_file.read_by_time(start_time, noise_len)
         else:
@@ -557,7 +640,8 @@ class EventsDataFrame:
                 int(start_time * self.sampling) : int((start_time + noise_len) * self.sampling)]
         return vv
     
-    def _get_signal_data(self, data_file: Optional[DataFile] = None):
+    def _get_signal_data(self, data_file: Optional[DataFile] = None) -> Callable[[float], np.ndarray]:
+        # 获取读取信号Data的函数    
         if data_file is not None:
             vv = lambda pk_time: data_file.read_by_time(pk_time - self.pk_posi, self.win_len)
         else:
@@ -565,22 +649,26 @@ class EventsDataFrame:
                 int((pk_time - self.pk_posi) * self.sampling) : int((pk_time - self.pk_posi + self.win_len) * self.sampling)]
         return vv
 
+    # 查找噪声数据 ==================================================================
     def find_noise_df(self, data_file: Optional[DataFile] = None):
         if self.v is None and data_file is None:
             raise ValueError("Data of signal has not been imported.")
         if self.df_signal is None:
             raise ValueError("DataFrame of signal has not been imported.")
         
-        read_noise = self._get_noise_data(data_file)
+        read_noise: Callable[[float, float], np.ndarray] = self._get_noise_data(data_file)
         dd = []
         
         for i in self.df_signal.index:
             interval = self.df_signal['pk_interval'][i]
             if interval < 2 * self.win_len:
+                # 事件间隔小于2*win_len, 无法找到足够长度的噪声数据，跳过该事件
                 continue
+
+            # 计算噪声数据的起始时间和和长度
             interval -= self.win_len
-            k = int(interval // (self.win_len // 2))
-            noise_len = k * (self.win_len // 2)
+            k = int(interval // (self.win_len / 2))
+            noise_len = k * (self.win_len / 2)
             start_time = self.df_signal['pk_time'][i] - self.pk_posi + self.bl_end - noise_len
             
             noise_size = int(noise_len * self.sampling)
@@ -657,7 +745,8 @@ class EventsDataFrame:
                     f"RMS={self.df_signal['BL_RMS'][i]:.2f}, "
                     f"RT={self.df_signal['RT'][i]:.1f}, "
                     f"DT={self.df_signal['DT'][i]:.1f}, "
-                    f"slope={self.df_signal['BL_slope'][i]:.3f}"
+                    f"slope={self.df_signal['BL_slope'][i]:.3f}, "
+                    f"posi={self.df_signal['pk_time'][i]:.1f}"
                     )
             
             v = read_signal(self.df_signal['pk_time'][i]) - self.df_signal['Baseline'][i]
@@ -730,7 +819,8 @@ class EventsDataFrame:
                     f"p2p={self.df_noise['BL_p2p'][i]:.2f}, "
                     f"slope={self.df_noise['BL_slope'][i]:.3f}, "
                     f"RMS={self.df_noise['BL_RMS'][i]:.2f}, "
-                    f"length={noise_len:.1f}")
+                    f"length={noise_len:.1f}, "
+                    f"position={self.df_noise['start_time'][i]:.1f}")
             v = read_noise(self.df_noise['start_time'][i], noise_len)
             if is_align:
                 v = v - np.mean(v)
@@ -769,6 +859,8 @@ class BaselineSigma:
     data_fil: np.ndarray = np.array([])
     of: Optional[OF] = None
 
+    unit: str = 'mV'
+
     def __init__(self, of: Optional[OF] = None):
         self.of = of
 
@@ -790,28 +882,36 @@ class BaselineSigma:
         for i in range(n_win):
             self._data_fil_list.append(self.of.filter_window_data(nn[i*wl:(i+1)*wl]))
             
-    def plot(self, ax: plt.Axes = None):
+    def plot(self, ax: plt.Axes = None, is_calib: bool = False, coff: float = 1):
         
         is_upper = True
         if ax is None:
             is_upper = False
             _, ax = plt.subplots()
 
-        self.data_raw = np.concatenate(self._data_raw_list)
+        if is_calib:
+            self.unit = 'keV'
+        else:
+            self.unit = 'mV'
+            coff = 1
+
+        self.data_raw = np.concatenate(self._data_raw_list) * coff
         self._data_raw_list = []
-        self.data_fil = np.concatenate(self._data_fil_list)
-        self._data_fil_list = []
+        if len(self._data_fil_list) != 0:
+            self.data_fil = np.concatenate(self._data_fil_list) * coff
+            self._data_fil_list = []
+        
 
         self.sigma_fil = 0.0
 
-        self.sigma_raw = BaselineSigma._hist_gauss(ax, self.data_raw, label='Raw Noise', color='b')
+        self.sigma_raw = BaselineSigma._hist_gauss(ax, self.data_raw, label='Raw Noise', color='b', unit=self.unit)
         if self.data_fil.size != 0:
-            self.sigma_fil = BaselineSigma._hist_gauss(ax, self.data_fil, label='Filtered Noise', color='r')
+            self.sigma_fil = BaselineSigma._hist_gauss(ax, self.data_fil, label='Filtered Noise', color='r', unit=self.unit)
 
         ax.set_ylabel("Counts")
         ax.legend(loc='upper right')
         ax.grid(True)
-        ax.set_xlabel("Baseline[mV]")
+        ax.set_xlabel(f"Baseline[{self.unit}]")
 
         if not is_upper:
             plt.show(block=False)
@@ -819,13 +919,13 @@ class BaselineSigma:
         self.reset()
 
     @staticmethod
-    def _hist_gauss(ax: plt.Axes, data:np.ndarray, label='', color=None):
+    def _hist_gauss(ax: plt.Axes, data:np.ndarray, label='', color=None, unit='mV'):
 
         sigma0 = 1.4826 * np.median(np.abs(data - np.median(data)))
         binwith = np.ceil(sigma0 *100) / 1000
 
         return gauss_fit_hist(data, ax, 
-                binWidth=binwith, data_std=sigma0, nBins=50, mid = 0, unit='mV',
+                binWidth=binwith, data_std=sigma0, nBins=50, mid = 0, unit=unit,
                 label=label, color=color)
     
 

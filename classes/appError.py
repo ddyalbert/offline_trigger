@@ -1,3 +1,8 @@
+'''
+AppError 类：
+    为应用错误提供异常类
+'''
+
 class AppError(Exception):
     title = "Error!"
     message = "Application error"

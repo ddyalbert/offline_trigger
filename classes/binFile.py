@@ -1,10 +1,19 @@
+'''
+binFile 类：
+    为图形化界面提供与数据文件BIN2的交互接口
+    包括文件读取、写入、头信息改变、文件转换等功能
+    内部存储文件路径、数据的参数, 如采样率、ADC位数、满量程电压范围等
+    存在一个reader对象, 用于读取文件数据
+    
+'''
+
 import numpy as np
 import os
 from typing import Optional, BinaryIO
 import struct
 import math
 
-import funcs.fileIO as myIO
+import funcs.fileIO as fileIO
 import classes.appError as appError
 
 # ------------------------------------------------------------
@@ -59,7 +68,7 @@ HEADER_SIZE = struct.calcsize(HEADER_FMT)
 class DataFile:
 
     file_name: str = "" # "cc"
-    file_dir: str = "" # "aa/bb/"
+    file_dir: str = ""  # "aa/bb/"
     file_path: str = "" # "aa/bb/cc.ext"
 
     sampling : int
@@ -85,7 +94,7 @@ class DataFile:
     def open(self, file_path: Optional[str] = None, parent_window = None):
 
         if file_path is None:
-            file_path = myIO.get_file(parent_window=parent_window, filter="(*.BIN2);;(*.BIN)")
+            file_path = fileIO.get_file(parent_window=parent_window, filter="(*.BIN2);;(*.BIN)")
             if file_path == "":
                 raise appError.DataFileNotOpenedError(f"No data file has been chosen!") from None
 
@@ -97,7 +106,7 @@ class DataFile:
         self.close()
         self.reader = reader
         self.file_path = file_path
-        self.file_dir, self.file_name, _ = myIO.extract_file_info(file_path)
+        self.file_dir, self.file_name, _ = fileIO.extract_file_info(file_path)
 
         self._detect_format()
 
@@ -108,8 +117,8 @@ class DataFile:
         self.reset_reader()    
 
 
-
     def _detect_format(self):
+        # 识别文件开头的信息编码格式
         self.reader.seek(0)
         magic = self.reader.read(MAGIC_BYTES)
 
@@ -143,7 +152,7 @@ class DataFile:
         self.sampling = sampling
         self.total_duration = self.total_length / self.sampling / 3600.0 # hour
         
-    def set_ADC_para(self, ADC_bit: int,  Vrange: float):
+    def set_ADC_para(self, ADC_bit: int, Vrange: float):
         if self.is_encoded:
             return
         self.ADC_bit = ADC_bit
@@ -153,12 +162,13 @@ class DataFile:
 
     # read helper --------------------------------------------------
     def reset_reader(self, index: int = 0):
+        # 重置读取指针到指定索引位置，默认文件开头
         if self.reader is None:
             raise appError.DataFileNotOpenedError("The data file has not been opened")
         self.reader.seek(self.data_offset + index * self.n_bytes, 0)
 
     def _read_raw_ADC(self, length: int) -> np.ndarray:
-        """Read ADC codes and return uint32 array"""
+        # 读取长度为length的ADC数据序列，返回uint32数组
         if self.n_bytes == 4:
             return np.fromfile(self.reader, dtype=np.uint32, count=length)
         
@@ -183,33 +193,39 @@ class DataFile:
     # read data methods -----------------------------------------
 
     def read_next_by_index(self, length: int) -> np.ndarray:
+        # 读取长度为length(单位：采样点)的ADC数据序列，返回V数组
         adc = self._read_raw_ADC(length)
         return adc * self.ADC2V - self.Vrange
 
     def read_next_by_time(self, duration: float) -> np.ndarray:
+        # 读取长度为duration(单位：秒)的ADC数据序列，返回V数组
         length = int(duration * self.sampling)
         return self.read_next_by_index(length)
     
     def read_by_index(self, start: int, length: int) -> np.ndarray:
+        # 读取从start开始的length(单位：采样点)的ADC数据序列，返回V数组
         if start < 0:
             start = 0
         self.reset_reader(start)
         return self.read_next_by_index(length)
 
     def read_by_time(self, start_time: float, duration: float) -> np.ndarray:
+        # 读取从start_time开始的duration(单位：秒)的ADC数据序列，返回V数组
         start = int(start_time * self.sampling)
         length = int(duration * self.sampling)
         return self.read_by_index(start, length)
 
     def close(self):
+        # 关闭文件读取器
         if self.reader is not None:
             self.reader.close()
             self.reader = None
 
     # create a bin file -------------------------------------------------------------------------------
     def copy_file_with_header(self, out_file: Optional[str] = None, step: int = 1E6,
-        sampling: Optional[int] = None, ADC_bit: Optional[int] = None, Vrange: Optional[float] = None):
-        
+            sampling: Optional[int] = None, ADC_bit: Optional[int] = None, Vrange: Optional[float] = None):
+        # 复制BIN文件并添加头信息
+
         if self.reader is None:
             raise appError.DataFileNotOpenedError("The data file has not been opened")
         if out_file is None:
@@ -250,9 +266,66 @@ class DataFile:
 
                 yield k
 
+    @staticmethod
+    def convert_TDMS(tdms_file: str, sampling: int, ADC_bit: int, Vrange: float, 
+            out_file: Optional[str] = None, step: int = 1E6):
+        
+        # 转换TDMS文件为BIN文件, 并添加头信息
+        from nptdms import TdmsFile, TdmsGroup, TdmsChannel
+
+        n_bytes = int(math.ceil(ADC_bit / 8))
+        if n_bytes > 4:
+            raise ValueError(f"{n_bytes} bytes ADC data is not supported!")
+        
+
+        tdms_reader = TdmsFile.open(tdms_file)
+        group: TdmsGroup = tdms_reader.groups()[1]
+        channel: TdmsChannel = group.channels()[0]
+        
+        header = struct.pack(HEADER_FMT, ADC_bit, Vrange, n_bytes, float(sampling), b"\x00" * 5 )
+        data_length = len(channel)
+        num_chunk = int(math.ceil(data_length / step))
+
+        file_dir, file_name, _ = fileIO.extract_file_info(tdms_file)
+        out_file = file_dir + file_name + ".BIN2"
+
+        yield num_chunk
+
+        with open(out_file, "wb") as fout:
+            fout.write(b"\x00" * MAGIC_BYTES)
+            fout.write(header)
+
+            for k in range(num_chunk):
+
+                start_ind = k * step
+                end_ind = min((k + 1) * step, data_length)
+                v = channel[start_ind:end_ind]
+                
+                v = np.round((v + Vrange) / (2 * Vrange) * (1 << ADC_bit)).astype(np.uint32)
+                v = np.clip(v, 0, (1 << 8 * n_bytes) - 1)
+
+                if n_bytes == 3:
+                    buf = np.empty(v.size * 3, dtype=np.uint8)
+                    buf[0::3] = (v & 0xFF)
+                    buf[1::3] = (v >> 8) & 0xFF
+                    buf[2::3] = (v >> 16) & 0xFF
+                    buf.tofile(fout)
+                else:
+                    dtype_map = {1: np.uint8, 2: np.uint16, 4: np.uint32}
+                    v.astype(dtype_map[n_bytes]).tofile(fout)
+
+                yield k
+            
+            tdms_reader.close()
+            yield k
+
+            
+
 
 
     def change_header(self, sampling: Optional[int] = None, ADC_bit: Optional[int] = None, Vrange: Optional[float] = None):
+        # 改变BIN文件头信息，并且写入文件
+        
         if not self.is_encoded:
             raise appError.BinFileInfoChangedError("This BIN2 file has no header, cannot change header")
         if self.reader is None:

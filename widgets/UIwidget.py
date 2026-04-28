@@ -2,10 +2,15 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backend_bases import PickEvent, MouseEvent
 from matplotlib.figure import Figure
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 
 from typing import Dict
 from pathlib import Path
+
+import sys
+import re
+import numpy as np
+import pandas as pd
 
 
 # ---------------------------------------------------------------
@@ -93,11 +98,6 @@ class  MPLwidget(QtWidgets.QWidget):
 # ----------------------------------------------------------------
 # ObjectBrowserDialog --------------------------------------------
 # ----------------------------------------------------------------
-
-import sys
-import re
-import numpy as np
-import pandas as pd
 
 class ObjectBrowserDialog(QtWidgets.QDialog):
     def __init__(self, obj, parent=None):
@@ -392,4 +392,102 @@ class FileComboBox(QtWidgets.QComboBox):
         else:
             self.fileChanged.emit("")
 
-            
+
+class CutPlainTextEdit(QtWidgets.QPlainTextEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.placeholder = "第一行提示\n第二行提示\n第三行提示"
+
+        # self._show_placeholder()
+
+        QtCore.QTimer.singleShot(0, self._show_placeholder)
+
+    def set_placeholder(self, placeholder: str):
+        self.placeholder = placeholder
+        self._show_placeholder()
+
+    def _show_placeholder(self):
+        self.setPlainText(self.placeholder)
+        self.setStyleSheet("color: gray;")
+        self._is_placeholder = True
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+
+        if self._is_placeholder:
+            self.clear()
+            self.setStyleSheet("color: black;")
+            self._is_placeholder = False
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+
+        if not self.toPlainText().strip():
+            self._show_placeholder()
+
+
+    from pandas import DataFrame
+    def apply_cuts_and_highlight(self, df: DataFrame):
+        
+        lines = self.toPlainText().splitlines()
+        self._clear_highlight()
+
+        local_dict = {col: df[col] for col in df.columns}
+        global_dict = {
+            "np": np,
+            "sin": np.sin,
+            "cos": np.cos,
+            "tan": np.tan,
+            "exp": np.exp,
+            "log": np.log,
+            "abs": np.abs
+        }
+
+        mask = None
+        error_lines = []
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                cond = eval(line, global_dict, local_dict)
+                if mask is None:
+                    mask = cond
+                else:
+                    mask = mask & cond
+
+            except Exception:
+                error_lines.append(i)
+
+        self._highlight_line(error_lines, color=QtGui.QColor("red"))        
+
+        if mask is not None:
+            return df[mask]
+
+        return df
+    
+    def _highlight_line(self, line_numbers, color=QtGui.QColor("red")):
+        
+        if not line_numbers:
+            return
+        
+        cursor = QtGui.QTextCursor(self.document())
+        fmt = QtGui.QTextCharFormat()
+        fmt.setForeground(color)
+
+        for i in line_numbers:
+            block = self.document().findBlockByNumber(i)
+            cursor.setPosition(block.position())
+            cursor.movePosition(QtGui.QTextCursor.MoveOperation.EndOfBlock, QtGui.QTextCursor.MoveMode.KeepAnchor)
+            cursor.mergeCharFormat(fmt)
+
+    def _clear_highlight(self):
+        cursor = QtGui.QTextCursor(self.document())
+        cursor.select(QtGui.QTextCursor.SelectionType.Document)
+
+        fmt = QtGui.QTextCharFormat()
+        fmt.setForeground(QtGui.QColor("black"))
+
+        cursor.mergeCharFormat(fmt)
